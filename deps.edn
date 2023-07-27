@@ -1,4 +1,6 @@
-{:deps {sg.flybot/lasagna-pull {:mvn/version "0.4.150"}}
+{:deps 
+ {sg.flybot/lasagna-pull {:mvn/version "0.4.150"}
+  metosin/malli {:mvn/version "0.11.0"}}
  :aliases
  {:dev {:extra-deps {robertluo/rich-comment-tests {:git/url "https://github.com/robertluo/rich-comment-tests" :git/tag "v1.1.0" :git/sha "6d01d12"}}}
   :test {:exec-fn com.mjdowney.rich-comment-tests.test-runner/run-tests-in-file-tree!
