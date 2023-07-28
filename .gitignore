@@ -2,4 +2,5 @@
 
 .calva/output-window
 .cpcache/
-.clj-kondo/.cache/
+.clj-kondo/*/
+.lsp/.cache
