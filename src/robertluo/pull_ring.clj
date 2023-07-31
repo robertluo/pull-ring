@@ -52,8 +52,8 @@
       "application/transit+json"         (transit-read :json)
       "application/transit+json_verbose" (transit-read :json-verbose)
       "application/transit+msgpack"      (transit-read :msgpack) 
-      (ex-info "Unexpected content type" {:code :unknown-value
-                                          :type content-type}))))
+      (throw (ex-info "Unexpected content type" {:code :unknown-value
+                                                 :type content-type})))))
 
 (defn s->stream [s]
   (-> s (.getBytes "UTF-8") (java.io.ByteArrayInputStream.)))
@@ -76,8 +76,8 @@
       "application/transit+json"         (transit-write :json)
       "application/transit+json_verbose" (transit-write :json-verbose)
       "application/transit+msgpack"      (transit-write :msgpack)
-      (ex-info "Unexpected accept type" {:code :unknown-value
-                                         :type content-type}))))
+      (throw (ex-info "Unexpected accept type" {:code :unknown-value
+                                                :type content-type})))))
 
 ^:rct/test
 (comment
@@ -102,34 +102,42 @@
        (interpose "/")
        (apply str)))
 
+(defn schema-handler
+  "returns a ring handler on schema, returns nil if not match"
+  [uri schema]
+  (pull/qfn
+   {:request-method :get :uri uri}
+   {:status 200
+    :headers {"content-type" "application/edn"}
+    :body (pr-str schema)}))
+
+(defn query-handler
+  "returns a ring handler on `uri` for single-argument function `model-maker and data schema `schema`,
+    - `uri`: where this handler should match
+    - `model-maker`: take the request as the argument, returns response
+    - `schema`: schema for the returned model by `model-maker`"
+  [uri model-maker schema]
+  (pull/qfn
+   {:request-method :post :uri uri :body '?body
+    :headers {"content-type" '?content-type "accept" '?accept-type}}
+   (pull/with-data-schema schema
+     (let [rslt ((pull/query (read-stream ?body ?content-type)) (model-maker &?))]
+       {:status 200
+        :headers {"content-type" ?accept-type}
+        :body (write-stream rslt ?accept-type)}))))
+
 (defn model-handler
   "returns a ring handler for data `model` and its `schema` on uri `prefix`"
-  [model schema prefix]
-  (let [schema-handler
-        (pull/qfn
-         {:request-method :get :uri (uri-merge prefix "schema")}
-         {:status 200
-          :headers {"content-type" "application/edn"}
-          :body (pr-str schema)})
-        model-handler
-        (pull/qfn
-         {:request-method :post :uri (uri-merge prefix "query") :body '?body
-          :headers {"content-type" '?content-type "accept" '?accept-type}}
-         ;;TODO exception handle
-         (pull/with-data-schema schema
-           (let [rslt ((pull/query (read-stream ?body ?content-type)) model)]
-             {:status 200
-              :headers {"content-type" ?accept-type}
-              :body (write-stream rslt ?accept-type)})))
-        default-handler
-        (constantly {:status 404})]
-    (fn-choose model-handler schema-handler default-handler)))
+  [schema model-maker prefix]
+  (fn-choose (query-handler (uri-merge prefix "query") model-maker schema)
+             (schema-handler (uri-merge prefix "schema") schema)
+             (constantly {:status 404})))
 
 ^:rct/test
 (comment
-  (def ma (model-handler {:a 1 :b 20} [:map [:a :int] [:b :string]] "/pull-api"))
+  (def ma (model-handler [:map [:a :int] [:b :string]] (constantly {:a 1 :b "ok"}) "/pull-api"))
   (ma {:request-method :get :uri "/pull-api/schema"}) ;=>> {:status 200}
-
+  
   (ma {:request-method :post :uri "/pull-api/query" 
        :headers {"content-type" "application/edn" "accept" "application/edn"}
        :body (o->stream '{:a ?a})}) ;=>> {:status 200 :body "{?a 1, &? {:a 1}}"}
