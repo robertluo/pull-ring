@@ -3,7 +3,8 @@
   (:require
    [sg.flybot.pullable :as pull]
    [clojure.edn :as edn]
-   [cognitect.transit :as transit]))
+   [cognitect.transit :as transit]
+   [babashka.http-client :as http]))
 
 ;;----
 ;; Ring data schemas
@@ -143,3 +144,10 @@
        :body (o->stream '{:a ?a})}) ;=>> {:status 200 :body "{?a 1, &? {:a 1}}"}
   (ma {:request-method :post :uri "/none"}) ;=>{:status 404}
   )
+
+(defn remote-pull
+  ([endpoint-uri pattern]
+   (remote-pull endpoint-uri pattern {:accept "application/edn" :content-type "application/edn"}))
+  ([endpoint-uri pattern headers]
+   (let [request {:headers headers :body (pr-str pattern)}]
+     (http/post endpoint-uri request))))

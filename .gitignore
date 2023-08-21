@@ -4,3 +4,6 @@
 .cpcache/
 .clj-kondo/*/
 .lsp/.cache
+
+# clerk
+.clerk/cache/
